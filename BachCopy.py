@@ -1,9 +1,12 @@
-import PySimpleGUI as sg
+import PySimpleGUI as sg #pip install PySimpleGUI
 import yaml #pip install pyyaml
 import os.path
 from os import path
 
 sg.theme('Reddit')   # Add a touch of color
+
+def loadFileSET(fileName):
+    pass
 
 def createMainWindow( checkboxes, templetaFileText='', sourcesDirText='', outputDirText='', overwriteFiles=True ):
     mainLayout= [[sg.Text('Plantilla')],
@@ -27,7 +30,7 @@ def createConfigurationWindow(availableList, unavailableList):
             [sg.Listbox(availableList, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, size=(20,10), key="-availableList-")]
             ]
     col2= [[sg.Button('▶',key='-rightBtn-')],[sg.Button('◀',key='-leftBtn-')]]
-    col3= [[sg.Text('Disponibles')],
+    col3= [[sg.Text('No disponibles')],
             [sg.Listbox(unavailableList, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, size=(20,10), key="-unavailableList-")]
             ]
     layout= [[sg.Column(col1),sg.Column(col2),sg.Column(col3)], [sg.Button('Guardar',key='-saveBtn-'),sg.Button('Cancelar',key='-cancelBtn-')]]
