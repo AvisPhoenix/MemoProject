@@ -55,7 +55,7 @@ def saveConfigurationFile(unavailableList):
     # Unimos la lista de no disponibles (hay que cuidar no tener repetidos, por eso lo convertimos en conjuntos)
     # Nota este método de unión no es eficiente con listas muy grandes
     unavailableListFinal = list(set(unavailableList) | set(oldUnavailableList))
-    dict_file = [{'Unavaible': unavailableListFinal}]
+    dict_file = {'Unavaible': unavailableListFinal}
     with open(confFile, 'w') as file:
         yaml.dump(dict_file,file)
 
@@ -71,12 +71,21 @@ def runConfigurationWindow(sections):
             break
         if event == '-rightBtn-':
             #Pasar de disponibles a no disponbles
-            pass
+            for item in values['-availableList-']:
+                availableList.remove(item)
+                unavailableList.append(item)
+            modalwindow['-availableList-'].update(availableList)
+            modalwindow['-unavailableList-'].update(unavailableList)
         if event == '-leftBtn-':
             #Pasar de no disnibles a disponibles
-            pass
+            for item in values['-unavailableList-']:
+                unavailableList.remove(item)
+                availableList.append(item)
+            modalwindow['-availableList-'].update(availableList)
+            modalwindow['-unavailableList-'].update(unavailableList)
         if event == '-saveBtn-':
             #Guardar y salir
+            saveConfigurationFile(unavailableList)
             modalwindow.close()
             break
 
