@@ -40,7 +40,7 @@ def loadConfigurationFile(sections):
         with open(confFile) as file:
             document = yaml.full_load(file)
             for item, doc in document.items():
-                if item == 'Unavaible':
+                if item == 'Unavailable':
                     unavailableList = doc
     if len(unavailableList) > 0 and len(sections) > 0:
         # Si hay elementos no disponibles los intersectamos con las secciones existentes
@@ -48,14 +48,14 @@ def loadConfigurationFile(sections):
         unavailableList = list(set(sections) & set(unavailableList))
     return unavailableList
 
-def saveConfigurationFile(unavailableList):
+def saveConfigurationFile(availableList,unavailableList):
     confFile='conf.yaml'
     # Obtener la lista de no disponibles ya existente
     oldUnavailableList = loadConfigurationFile([])
     # Unimos la lista de no disponibles (hay que cuidar no tener repetidos, por eso lo convertimos en conjuntos)
     # Nota este método de unión no es eficiente con listas muy grandes
-    unavailableListFinal = list(set(unavailableList) | set(oldUnavailableList))
-    dict_file = {'Unavaible': unavailableListFinal}
+    unavailableListFinal = list((set(unavailableList) | set(oldUnavailableList)) - set(availableList))
+    dict_file = {'Unavailable': unavailableListFinal}
     with open(confFile, 'w') as file:
         yaml.dump(dict_file,file)
 
@@ -85,17 +85,29 @@ def runConfigurationWindow(sections):
             modalwindow['-unavailableList-'].update(unavailableList)
         if event == '-saveBtn-':
             #Guardar y salir
-            saveConfigurationFile(unavailableList)
+            saveConfigurationFile(availableList,unavailableList)
             modalwindow.close()
             break
 
+def createLayoutCheckBoxes(sections):
+    layout=[]
+    i = 1
+    unavailableList = loadConfigurationFile(sections)
+    availableList = list(set(sections) - set(unavailableList) )
+    for section in availableList:
+        layout.append([sg.Checkbox(section,default=True, key="-item" + str(i) + "-" ),sg.Radio('Sustituir',2),sg.Radio('Mezclar',2, default=True)])
+        i = i+1
+    return layout
+
+def updateCheckBoxes(sections):
+    checkboxes = createLayoutCheckBoxes(sections)
+    return createMainWindow(checkboxes,values['-templateFile-'],values['-sourcesDir-'],values['-outputDir-'],values['-overwriteFiles-'])
 
 #MainWindows
 checkboxes= [[sg.Text('Abre una plantilla')]]
 
 # Create the Window
 window = createMainWindow(checkboxes)
-
 
 # Ciclo principal de la aplicación
 while True:
@@ -106,16 +118,12 @@ while True:
             window.close()
             break #Termina el ciclo
         if event == '-templateFile-':
+            sections=['Seccion1','Seccion2','Seccion3']
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
             #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
-            #Avis Phoenix - 21/06/2020
-            checkboxes = []
-            checkboxes.append([sg.Checkbox('Seccion1',default=True, key="item1"),sg.Radio('Sustituir',0),sg.Radio('Mezclar',0, default=True)])
-            checkboxes.append([sg.Checkbox('Seccion2',default=True, key="item2"),sg.Radio('Sustituir',1),sg.Radio('Mezclar',1, default=True)])
-            checkboxes.append([sg.Checkbox('Seccion3',default=True, key="item3"),sg.Radio('Sustituir',2),sg.Radio('Mezclar',2, default=True)])
-            
+            #Avis Phoenix - 21/06/2020 
             window.close()
-            window = createMainWindow(checkboxes,values['-templateFile-'],values['-sourcesDir-'],values['-outputDir-'],values['-overwriteFiles-'])
+            window = updateCheckBoxes(sections)
         if event == '-overwriteFiles-':
             # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
@@ -133,6 +141,11 @@ while True:
         if event == '-setupBtn-':
             sections=['Seccion1','Seccion2','Seccion3']
             runConfigurationWindow(sections)
+            #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
+            #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
+            #Avis Phoenix - 21/06/2020 
+            window.close()
+            window = updateCheckBoxes(sections)
         print('Evento ', event)
         print(values)
         
