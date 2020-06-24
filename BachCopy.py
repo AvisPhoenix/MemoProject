@@ -95,7 +95,7 @@ def createLayoutCheckBoxes(sections):
     unavailableList = loadConfigurationFile(sections)
     availableList = list(set(sections) - set(unavailableList) )
     for section in availableList:
-        layout.append([sg.Checkbox(section,default=True, key="-item" + str(i) + "-" ),sg.Radio('Sustituir',2),sg.Radio('Mezclar',2, default=True)])
+        layout.append([sg.Checkbox(section,default=True, key="-item" + str(i) + "-" ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
         i = i+1
     return layout
 
@@ -108,7 +108,7 @@ checkboxes= [[sg.Text('Abre una plantilla')]]
 
 # Create the Window
 window = createMainWindow(checkboxes)
-
+procesando = False
 # Ciclo principal de la aplicación
 while True:
     if window is not None:
@@ -133,11 +133,15 @@ while True:
             window['-outputDir-'].update(values['-sourcesDir-'])
         if event == '-runBtn-':
             #Acciones del boton de ejecutar
-            window['-runBtn-'].update('Cancelar')
-            window['-progressBar-'].update(visible=True)
-            window['-countFiles-'].update(visible=True)
-            window['-fileLbl-'].update(visible=True)
-            window['-errorTable-'].update(visible=True)
+            if procesando:
+                window['-runBtn-'].update('Ejecutar')
+            else:
+                window['-runBtn-'].update('Cancelar')
+            window['-progressBar-'].update(visible=not procesando)
+            window['-countFiles-'].update(visible=not procesando)
+            window['-fileLbl-'].update(visible=not procesando)
+            window['-errorTable-'].update(visible=not procesando)
+            procesando = not procesando
         if event == '-setupBtn-':
             sections=['Seccion1','Seccion2','Seccion3']
             runConfigurationWindow(sections)
