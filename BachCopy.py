@@ -1,28 +1,94 @@
 import PySimpleGUI as sg
+import yaml #pip install pyyaml
+import os.path
+from os import path
 
 sg.theme('Reddit')   # Add a touch of color
 
+def createMainWindow( checkboxes, templetaFileText='', sourcesDirText='', outputDirText='', overwriteFiles=True ):
+    mainLayout= [[sg.Text('Plantilla')],
+             [sg.Input(templetaFileText, key='-templateFile-', enable_events=True), sg.FileBrowse('...',target='-templateFile-',file_types=(("Archivos Set", "*.$et"),),key="-templateBtn-")],
+             [sg.Frame('Secciones', checkboxes,key='-secctionesGpb-') ],
+             [sg.Button('Configurar secciones',disabled=not templetaFileText, key='-setupBtn-')],
+             [sg.Text('Carpeta de documentos originales')],
+             [sg.Input(sourcesDirText, key='-sourcesDir-',enable_events=True), sg.FolderBrowse('...',target='-sourcesDir-',key='-sourcesBtn-')],
+             [sg.Checkbox('Sobreescribir archivos',default=overwriteFiles, key="-overwriteFiles-",enable_events=True)],
+             [sg.Text('Carpeta de documentos de salida')],
+             [sg.Input(outputDirText, key='-outputDir-',disabled=overwriteFiles), sg.FolderBrowse('...',target='-outputDir-',disabled=overwriteFiles,key="-outputBtn-")],
+             [sg.Button('Ejecutar',key="-runBtn-")],
+             [sg.ProgressBar(100,visible=False, size=(30,10),orientation='horizontal',key="-progressBar-")],
+             [sg.Text('0/0', visible=False,key="-countFiles-"),sg.Text('archivos', visible=False, key="-fileLbl-")],
+             [sg.Table(values=[['','','']], key='-errorTable-', visible=False,headings=['Archivo','Unidad','Error'],col_widths=[20,10,20],auto_size_columns=False,num_rows=1)]
+            ]
+    return sg.Window('Copia en lote', mainLayout)
+
+def createConfigurationWindow(availableList, unavailableList):
+    col1= [[sg.Text('Disponibles')],
+            [sg.Listbox(availableList, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, size=(20,10), key="-availableList-")]
+            ]
+    col2= [[sg.Button('▶',key='-rightBtn-')],[sg.Button('◀',key='-leftBtn-')]]
+    col3= [[sg.Text('Disponibles')],
+            [sg.Listbox(unavailableList, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, size=(20,10), key="-unavailableList-")]
+            ]
+    layout= [[sg.Column(col1),sg.Column(col2),sg.Column(col3)], [sg.Button('Guardar',key='-saveBtn-'),sg.Button('Cancelar',key='-cancelBtn-')]]
+    return sg.Window('Configurar secciones', layout)
+
+def loadConfigurationFile(sections):
+    confFile='conf.yaml'
+    unavailableList=[]
+    if path.exists(confFile):
+        with open(confFile) as file:
+            document = yaml.full_load(file)
+            for item, doc in document.items():
+                if item == 'Unavaible':
+                    unavailableList = doc
+    if len(unavailableList) > 0 and len(sections) > 0:
+        # Si hay elementos no disponibles los intersectamos con las secciones existentes
+        # Nota este método de intersección no es eficiente con listas muy grandes
+        unavailableList = list(set(sections) & set(unavailableList))
+    return unavailableList
+
+def saveConfigurationFile(unavailableList):
+    confFile='conf.yaml'
+    # Obtener la lista de no disponibles ya existente
+    oldUnavailableList = loadConfigurationFile([])
+    # Unimos la lista de no disponibles (hay que cuidar no tener repetidos, por eso lo convertimos en conjuntos)
+    # Nota este método de unión no es eficiente con listas muy grandes
+    unavailableListFinal = list(set(unavailableList) | set(oldUnavailableList))
+    dict_file = [{'Unavaible': unavailableListFinal}]
+    with open(confFile, 'w') as file:
+        yaml.dump(dict_file,file)
+
+def runConfigurationWindow(sections):
+    unavailableList = loadConfigurationFile(sections)
+    availableList = list(set(sections) - set(unavailableList))
+    modalwindow= createConfigurationWindow(availableList,unavailableList)
+    while True and modalwindow is not None:
+        event, values = modalwindow.read()
+        if event in (None,'-cancelBtn-'):
+            #Salir
+            modalwindow.close()
+            break
+        if event == '-rightBtn-':
+            #Pasar de disponibles a no disponbles
+            pass
+        if event == '-leftBtn-':
+            #Pasar de no disnibles a disponibles
+            pass
+        if event == '-saveBtn-':
+            #Guardar y salir
+            modalwindow.close()
+            break
+
+
 #MainWindows
 checkboxes= [[sg.Text('Abre una plantilla')]]
-mainLayout= [[sg.Text('Plantilla')],
-             [sg.Input('', key='-templateFile-', enable_events=True), sg.FileBrowse('...',target='-templateFile-',file_types=(("Archivos Set", "*.$et"),),key="-templateBtn-")],
-             [sg.Frame('Secciones', checkboxes,key='-secctionesGpb-') ],
-             [sg.Button('Configurar secciones', disabled=True)],
-             [sg.Text('Carpeta de documentos originales')],
-             [sg.Input('', key='-sourcesDir-',enable_events=True), sg.FolderBrowse('...',target='-sourcesDir-',key='-sourcesBtn-')],
-             [sg.Checkbox('Sobreescribir archivos',default=True, key="-overwriteFiles-",enable_events=True)],
-             [sg.Text('Carpeta de documentos de salida')],
-             [sg.Input('', key='-outputDir-',disabled=True), sg.FolderBrowse('...',target='-outputDir-',disabled=True,key="-outputBtn-")],
-             [sg.Button('Ejecutar',key="-runBtn-")],
-             [sg.ProgressBar(100,visible=True, size=(30,10),orientation='horizontal',key="-progressBar-")],
-             [sg.Text('0/0', visible=True,key="countFiles"),sg.Text('archivos', visible=True)],
-             [sg.Table(values=[['','','']],headings=['Archivo','Unidad','Error'],col_widths=[20,10,20],auto_size_columns=False,num_rows=1)]
-            ]
+
 # Create the Window
-window = sg.Window('Copia en lote', mainLayout)
+window = createMainWindow(checkboxes)
 
 
-# Event Loop to process "events" and get the "values" of the inputs
+# Ciclo principal de la aplicación
 while True:
     if window is not None:
         event, values = window.read()
@@ -38,27 +104,26 @@ while True:
             checkboxes.append([sg.Checkbox('Seccion1',default=True, key="item1"),sg.Radio('Sustituir',0),sg.Radio('Mezclar',0, default=True)])
             checkboxes.append([sg.Checkbox('Seccion2',default=True, key="item2"),sg.Radio('Sustituir',1),sg.Radio('Mezclar',1, default=True)])
             checkboxes.append([sg.Checkbox('Seccion3',default=True, key="item3"),sg.Radio('Sustituir',2),sg.Radio('Mezclar',2, default=True)])
-            mainLayout= [[sg.Text('Plantilla')],
-             [sg.Input(values['-templateFile-'], key='-templateFile-', enable_events=True), sg.FileBrowse('...',target='-templateFile-',file_types=(("Archivos Set", "*.$et"),),key="-templateBtn-")],
-             [sg.Frame('Secciones', checkboxes,key='-secctionesGpb-') ],
-             [sg.Button('Configurar secciones',)],
-             [sg.Text('Carpeta de documentos originales')],
-             [sg.Input(values['-sourcesDir-'], key='-sourcesDir-',enable_events=True), sg.FolderBrowse('...',target='-sourcesDir-',key='-sourcesBtn-')],
-             [sg.Checkbox('Sobreescribir archivos',default=values['-overwriteFiles-'], key="-overwriteFiles-",enable_events=True)],
-             [sg.Text('Carpeta de documentos de salida')],
-             [sg.Input(values['-outputDir-'], key='-outputDir-',disabled=values['-overwriteFiles-']), sg.FolderBrowse('...',target='-outputDir-',disabled=values['-overwriteFiles-'],key="-outputBtn-")],
-             [sg.Button('Ejecutar',key="-runBtn-")],
-             [sg.ProgressBar(100,visible=True, size=(30,10),orientation='horizontal',key="-progressBar-")],
-             [sg.Text('0/0', visible=True,key="countFiles"),sg.Text('archivos', visible=True)],
-             [sg.Table(values=[['','','']],headings=['Archivo','Unidad','Error'],col_widths=[20,10,20],auto_size_columns=False,num_rows=1)]
-            ]
+            
             window.close()
-            window = sg.Window('Copia en lote', mainLayout)
+            window = createMainWindow(checkboxes,values['-templateFile-'],values['-sourcesDir-'],values['-outputDir-'],values['-overwriteFiles-'])
         if event == '-overwriteFiles-':
+            # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
             window['-outputBtn-'].update(disabled=values['-overwriteFiles-'])
         if event == '-sourcesDir-' and values['-overwriteFiles-']:
+            # Sobreescribimos el texto de la carpeta de salida
             window['-outputDir-'].update(values['-sourcesDir-'])
+        if event == '-runBtn-':
+            #Acciones del boton de ejecutar
+            window['-runBtn-'].update('Cancelar')
+            window['-progressBar-'].update(visible=True)
+            window['-countFiles-'].update(visible=True)
+            window['-fileLbl-'].update(visible=True)
+            window['-errorTable-'].update(visible=True)
+        if event == '-setupBtn-':
+            sections=['Seccion1','Seccion2','Seccion3']
+            runConfigurationWindow(sections)
         print('Evento ', event)
         print(values)
         
