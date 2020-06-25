@@ -3,15 +3,51 @@ import yaml #pip install pyyaml
 import os.path
 from os import path
 
-sg.theme('Reddit')   # Add a touch of color
+############################# BACKEND ###############################
 
 def loadFileSET(fileName):
-    pass
+    setFile = []
+    dict_item = {}
+    list_data = []
+
+    with open(fileName) as f:
+        line = f.readline()
+        while line:
+            if line[0] == '$':
+                if len(dict_item) > 0:
+                    dict_item.update({'data': list_data})
+                    setFile.append(dict_item)
+                if line[2:6] != 'File':
+                    dict_item = {'name':line[2:]}
+                    list_data = []
+            else:
+                list_data.append(line)
+            line = f.readline()
+
+    return setFile
+
+def getSectionsFileSET(setFile):
+    sections = []
+
+    for item in setFile:
+        sections.append(item.get('name'))
+    
+    return sections
+
+############################# FRONTEND ###############################
+
+sg.theme('Reddit')   # Add a touch of color
+
+def truncateString(string, maxLen):
+    maxLen = 12
+    if len(string) > maxLen:
+        string = string[0:maxLen-3] + '...'
+    return string
 
 def createMainWindow( checkboxes, templetaFileText='', sourcesDirText='', outputDirText='', overwriteFiles=True ):
     mainLayout= [[sg.Text('Plantilla')],
              [sg.Input(templetaFileText, key='-templateFile-', enable_events=True), sg.FileBrowse('...',target='-templateFile-',file_types=(("Archivos Set", "*.$et"),),key="-templateBtn-")],
-             [sg.Frame('Secciones', checkboxes,key='-secctionesGpb-') ],
+             [sg.Frame('Secciones', [[sg.Column(checkboxes, size=(315,150), scrollable=True)]],key='-secctionesGpb-', )],
              [sg.Button('Configurar secciones',disabled=not templetaFileText, key='-setupBtn-')],
              [sg.Text('Carpeta de documentos originales')],
              [sg.Input(sourcesDirText, key='-sourcesDir-',enable_events=True), sg.FolderBrowse('...',target='-sourcesDir-',key='-sourcesBtn-')],
@@ -98,7 +134,7 @@ def createLayoutCheckBoxes(sections):
     unavailableList = loadConfigurationFile(sections)
     availableList = list(set(sections) - set(unavailableList) )
     for section in availableList:
-        layout.append([sg.Checkbox(section,default=True, key="-item" + str(i) + "-" ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
+        layout.append([sg.Checkbox(truncateString(section,12),default=True, key="-item" + str(i) + "-", size=(13,10) ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
         i = i+1
     return layout
 
@@ -106,12 +142,15 @@ def updateCheckBoxes(sections):
     checkboxes = createLayoutCheckBoxes(sections)
     return createMainWindow(checkboxes,values['-templateFile-'],values['-sourcesDir-'],values['-outputDir-'],values['-overwriteFiles-'])
 
-#MainWindows
-checkboxes= [[sg.Text('Abre una plantilla')]]
 
-# Create the Window
-window = createMainWindow(checkboxes)
+############################# CICLO PRINCIPAL ###############################
+#Variables globales
 procesando = False
+plantilla_file=[]
+sections=[]
+# Create the Window
+checkboxes= [[sg.Text('Abre una plantilla')]]
+window = createMainWindow(checkboxes)
 # Ciclo principal de la aplicación
 while True:
     if window is not None:
@@ -121,7 +160,8 @@ while True:
             window.close()
             break #Termina el ciclo
         if event == '-templateFile-':
-            sections=['Seccion1','Seccion2','Seccion3']
+            plantilla_file = loadFileSET(values['-templateFile-'])
+            sections = getSectionsFileSET(plantilla_file)
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
             #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
             #Avis Phoenix - 21/06/2020 
@@ -131,6 +171,8 @@ while True:
             # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
             window['-outputBtn-'].update(disabled=values['-overwriteFiles-'])
+            if values['-overwriteFiles-']:
+                window['-outputDir-'].update(values['-sourcesDir-'])
         if event == '-sourcesDir-' and values['-overwriteFiles-']:
             # Sobreescribimos el texto de la carpeta de salida
             window['-outputDir-'].update(values['-sourcesDir-'])
@@ -146,15 +188,12 @@ while True:
             window['-errorTable-'].update(visible=not procesando)
             procesando = not procesando
         if event == '-setupBtn-':
-            sections=['Seccion1','Seccion2','Seccion3']
             runConfigurationWindow(sections)
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
             #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
             #Avis Phoenix - 21/06/2020 
             window.close()
             window = updateCheckBoxes(sections)
-        print('Evento ', event)
-        print(values)
         
     else:
         sg.popup('Error inesperado :(', 'Disculpa')
