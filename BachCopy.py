@@ -20,6 +20,9 @@ def loadFileSET(fileName):
                 if line[2:6] != 'File':
                     dict_item = {'name':line[2:]}
                     list_data = []
+                else:
+                    setFile.append({'name':'File','data':fileName})
+                    list_data = []
             else:
                 list_data.append(line)
             line = f.readline()
@@ -33,6 +36,75 @@ def getSectionsFileSET(setFile):
         sections.append(item.get('name'))
     
     return sections
+
+def getSectionByName(setFile,sectionName):
+    i = 0
+    while i < len(setFile) and setFile[i].get('name') != sectionName:
+        i = i+1
+    
+    if i >= len(setFile):
+        i = -1
+    
+    return i
+
+def verifyUnit(setFile1,setFile2):
+    i1 = getSectionByName(setFile1,'CONTROLS')
+    i2 = getSectionByName(setFile2,'CONTROLS')
+
+    isValid = False
+
+    if i1 >= 0 and i2 >= 0:
+        controls1 = setFile1[i1]
+        controls2 = setFile2[i2]
+        isValid = controls1.get('data')[1] == controls2.get('data')[1]
+    
+    return isValid
+
+def substituteSection1to2(setFile1,setFile2,sectionName):
+    i1 = getSectionByName(setFile1,sectionName)
+    i2 = getSectionByName(setFile2,sectionName)
+
+    error=[]
+    if i1 < 0:
+        i1 = getSectionByName(setFile1,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile1[i1].get('data'), 'unit':'?' })
+    if i2 < 0:
+        i2 = getSectionByName(setFile2,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile2[i2].get('data'), 'unit':'?' })
+    if i1 > 0 and i2 > 0:
+        setFile2[i2].update({'data':setFile1[i1].get('data')})
+    
+    return error
+
+def mergeSection1to2(setFile1,setFile2,sectionName):
+    i1 = getSectionByName(setFile1,sectionName)
+    i2 = getSectionByName(setFile2,sectionName)
+
+    error=[]
+    if i1 < 0:
+        i1 = getSectionByName(setFile1,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile1[i1].get('data'), 'unit':'?' })
+    if i2 < 0:
+        i2 = getSectionByName(setFile2,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile2[i2].get('data'), 'unit':'?' })
+    if i1 >= 0 and i2 >= 0:
+        listF = setFile2[i2].get('data').extend(setFile1[i1].get('data'))
+        setFile2[i2].update({'data':listF})
+    
+    return error
+
+
+def getFileNames(folder):
+    files = []
+    for entry in os.listdir(folder):
+        if os.path.isfile(os.path.join(folder, entry)):
+            files.append(os.path.join(folder, entry))
+    return files
+
+def processing(sections,folderIn, folderOut):
+    errors=[]
+
+    return errors
 
 ############################# FRONTEND ###############################
 
@@ -128,19 +200,40 @@ def runConfigurationWindow(sections):
             modalwindow.close()
             break
 
-def createLayoutCheckBoxes(sections):
-    layout=[]
-    i = 1
+def getAvailableList(sections):
+    #Obtenemos la lista valida de secciones
     unavailableList = loadConfigurationFile(sections)
     availableList = list(set(sections) - set(unavailableList) )
+    #Llenamos la lista de secciones con su indice asociado y en el orden en el que se cargó
+    FinalList = []
+    i=0
+    for section in sections:
+        if availableList.index(section) > -1:
+            FinalList.append({'name': section, 'idx': i})
+            i = i+1
+    return FinalList
+
+def createLayoutCheckBoxes(sections):
+    layout=[]
     for section in availableList:
-        layout.append([sg.Checkbox(truncateString(section,12),default=True, key="-item" + str(i) + "-", size=(13,10) ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
-        i = i+1
+        i = section.get('idx')
+        layout.append([sg.Checkbox(truncateString(section.get('name'),12),default=True, key="-item" + str(i) + "-", size=(13,10) ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
     return layout
 
 def updateCheckBoxes(sections):
     checkboxes = createLayoutCheckBoxes(sections)
     return createMainWindow(checkboxes,values['-templateFile-'],values['-sourcesDir-'],values['-outputDir-'],values['-overwriteFiles-'])
+
+def getCheckBoxesSelection(values,availableList):
+    salida = []
+    for section in availableList:
+        i = section.get('idx')
+        if values['-item' + i + '-']:
+            tipo = 1
+            if values['-item' + i + 'S-']:
+                tipo = 0
+            salida.append({'section': section.get('name'), 'type': tipo})
+    return salida
 
 
 ############################# CICLO PRINCIPAL ###############################
@@ -162,11 +255,12 @@ while True:
         if event == '-templateFile-':
             plantilla_file = loadFileSET(values['-templateFile-'])
             sections = getSectionsFileSET(plantilla_file)
+            availableList = getAvailableList(sections)
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
             #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
             #Avis Phoenix - 21/06/2020 
             window.close()
-            window = updateCheckBoxes(sections)
+            window = updateCheckBoxes(availableList)
         if event == '-overwriteFiles-':
             # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
@@ -193,7 +287,8 @@ while True:
             #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
             #Avis Phoenix - 21/06/2020 
             window.close()
-            window = updateCheckBoxes(sections)
+            availableList = getAvailableList(sections)
+            window = updateCheckBoxes(availableList)
         
     else:
         sg.popup('Error inesperado :(', 'Disculpa')
