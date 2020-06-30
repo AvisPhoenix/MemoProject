@@ -2,6 +2,7 @@ import PySimpleGUI as sg #pip install PySimpleGUI
 import yaml #pip install pyyaml
 import os.path
 from os import path
+from datetime import datetime
 
 ############################# BACKEND ###############################
 
@@ -26,6 +27,21 @@ def loadFileSET(fileName):
             else:
                 list_data.append(line)
             line = f.readline()
+        f.close()
+
+    return setFile
+
+def saveFileSET(fileName, setFile):
+
+    with open(fileName, 'w') as f:
+        for section in setFile:
+            #Formato de fecha: https://strftime.org/
+            f.write('$ File ' + fileName + ' saved ' + datetime.today().strftime('%m/%d/%Y %I:%M:%S %p'))
+            if section.get('name') != 'File':
+                sectionData = [ '$ ' +section.get('name')]
+                sectionData.extend(map(lambda x:x+'\n', section.get('data')))
+                f.writelines(sectionData)
+        f.close()
 
     return setFile
 
@@ -51,14 +67,32 @@ def verifyUnit(setFile1,setFile2):
     i1 = getSectionByName(setFile1,'CONTROLS')
     i2 = getSectionByName(setFile2,'CONTROLS')
 
-    isValid = False
+    errors = []
 
     if i1 >= 0 and i2 >= 0:
         controls1 = setFile1[i1]
         controls2 = setFile2[i2]
-        isValid = controls1.get('data')[1] == controls2.get('data')[1]
+        i1 = getSectionByName(setFile1,'File')
+        if controls1.get('data') is not None:
+            if controls1.get('data')[0] != controls2.get('data')[0]:
+                errors.append({'msg':'Se esperaba "' + controls2.get('data')[0] + '"', 'file': setFile1[i1].get('data'), 'unit': controls1.get('data')[0]})
+        else:
+            errors.append({'msg':'Sin unidad', 'file': setFile1[i1].get('data'), 'unit': '?'})
+
+    return errors
+
+def validSETFile(setFile):
+    #Validación básica del archivo
+    errors=[]
+    iFile = getSectionByName(setFile,'File')
+    if iFile >=0:
+        errors.append({'msg':'No tiene un registro del archivo', 'file': '??', 'unit': '?'})
+    i = getSectionByName(setFile,'CONTROLS')
+    if i >=0:
+        errors.append({'msg':'No tiene seccion de CONTROLS', 'file': setFile1[iFile].get('data'), 'unit': '?'})
+    return errors
     
-    return isValid
+    
 
 def substituteSection1to2(setFile1,setFile2,sectionName):
     i1 = getSectionByName(setFile1,sectionName)
@@ -94,15 +128,29 @@ def mergeSection1to2(setFile1,setFile2,sectionName):
     return error
 
 
-def getFileNames(folder):
+def getFileNames(folder, folder2):
     files = []
     for entry in os.listdir(folder):
         if os.path.isfile(os.path.join(folder, entry)):
-            files.append(os.path.join(folder, entry))
+            files.append(entry)
     return files
 
-def processing(sections,folderIn, folderOut):
+def processingFile(sections,setTemplateFile, fileIn, fileOut):
     errors=[]
+
+    setFileIn = loadFileSET(fileIn)
+
+    errors.extend( validSETFile(setFileIn) )
+    errors.extend( verifyUnit(setTemplateFile,setFileIn) )
+
+    if len(errors) == 0:
+        for section in sections:
+            if section.get('type') == 0:
+                errors.extend(substituteSection1to2(setTemplateFile,setFileIn,section.get('section')))
+            elif section.get('type') == 1:
+                errors.extend(mergeSection1to2(setTemplateFile,setFileIn,section.get('section')))
+        
+        saveFileSET(fileOut,setFileIn)
 
     return errors
 
@@ -127,7 +175,7 @@ def createMainWindow( checkboxes, templetaFileText='', sourcesDirText='', output
              [sg.Text('Carpeta de documentos de salida')],
              [sg.Input(outputDirText, key='-outputDir-',disabled=overwriteFiles), sg.FolderBrowse('...',target='-outputDir-',disabled=overwriteFiles,key="-outputBtn-")],
              [sg.Button('Ejecutar',key="-runBtn-")],
-             [sg.ProgressBar(100,visible=False, size=(30,10),orientation='horizontal',key="-progressBar-")],
+             [sg.ProgressBar(100,visible=False, size=(30,10),orientation='h'',key="-progressBar-")],
              [sg.Text('0/0', visible=False,key="-countFiles-"),sg.Text('archivos', visible=False, key="-fileLbl-")],
              [sg.Table(values=[['','','']], key='-errorTable-', visible=False,headings=['Archivo','Unidad','Error'],col_widths=[20,10,20],auto_size_columns=False,num_rows=1)]
             ]
@@ -235,6 +283,51 @@ def getCheckBoxesSelection(values,availableList):
             salida.append({'section': section.get('name'), 'type': tipo})
     return salida
 
+def processingFiles(templateFile, folderIn, folderOut, sections, window):
+    filesIn = getFileNames(folderIn)
+    stop = False
+
+    errors = validSETFile(templateFile)
+    if len(errors) == 0:
+        progressBar = window['-progressBar-']
+        progressBar.update(len(filesIn))
+        countFiles = window['-countFiles-']
+        countFiles.update("0 / " + str( len(filesIn) ) )
+
+        errorsList = []
+        tableErrors =  window['-progressBar-']
+        tableErrors.update([['','','']])
+
+        window['-runBtn-'].update('Cancelar')
+        window['-progressBar-'].update(visible=True)
+        window['-countFiles-'].update(visible=True)
+        window['-fileLbl-'].update(visible=True)
+        window['-errorTable-'].update(visible=True)
+
+        while i < len(filesIn) and not stop
+            event, values = window.read(timeout=10)
+            if event == '-runBtn-':
+                stop = True
+                window['-runBtn-'].update('Ejecutar')
+                window['-progressBar-'].update(visible=False)
+                window['-countFiles-'].update(visible=False)
+                window['-fileLbl-'].update(visible=False)
+                window['-errorTable-'].update(visible=False)
+            if not stop:
+                fileIn = os.path.join(folderIn, filesIn[i])
+                fileOut = os.path.join(folderOut, filesIn[i])
+                errors = processingFile(sections,templateFile,fileIn, fileOut)
+                if len(errors) > 0:
+                    for error in errors:
+                        errorsList.append([error.get('file'),error.get('unit'),error.get('msg')])
+                    tableErrors.update(errorsList)
+                progress_bar.UpdateBar(i + 1)
+            i =  i + 1
+    else:
+        sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
+
+        
+
 
 ############################# CICLO PRINCIPAL ###############################
 #Variables globales
@@ -254,33 +347,29 @@ while True:
             break #Termina el ciclo
         if event == '-templateFile-':
             plantilla_file = loadFileSET(values['-templateFile-'])
-            sections = getSectionsFileSET(plantilla_file)
-            availableList = getAvailableList(sections)
-            #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
-            #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
-            #Avis Phoenix - 21/06/2020 
-            window.close()
-            window = updateCheckBoxes(availableList)
+            errors = validSETFile(plantilla_file)
+            if len(errors) == 0:
+                sections = getSectionsFileSET(plantilla_file)
+                availableList = getAvailableList(sections)
+                #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
+                #ref: https://www.reddit.com/r/PySimpleGUI/comments/cdrjat/is_it_possible_to_update_the_layout_of_a_column/
+                #Avis Phoenix - 21/06/2020 
+                window.close()
+                window = updateCheckBoxes(availableList)
+            else:
+                sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
         if event == '-overwriteFiles-':
             # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
             window['-outputBtn-'].update(disabled=values['-overwriteFiles-'])
             if values['-overwriteFiles-']:
-                window['-outputDir-'].update(values['-sourcesDir-'])
+                window['-outputDir-'].update(sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.'))
         if event == '-sourcesDir-' and values['-overwriteFiles-']:
             # Sobreescribimos el texto de la carpeta de salida
             window['-outputDir-'].update(values['-sourcesDir-'])
         if event == '-runBtn-':
             #Acciones del boton de ejecutar
-            if procesando:
-                window['-runBtn-'].update('Ejecutar')
-            else:
-                window['-runBtn-'].update('Cancelar')
-            window['-progressBar-'].update(visible=not procesando)
-            window['-countFiles-'].update(visible=not procesando)
-            window['-fileLbl-'].update(visible=not procesando)
-            window['-errorTable-'].update(visible=not procesando)
-            procesando = not procesando
+            processingFiles(plantilla_file, values['-sourcesDir-'], values['-outputDir-'], availableList, window )
         if event == '-setupBtn-':
             runConfigurationWindow(sections)
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
@@ -293,3 +382,4 @@ while True:
     else:
         sg.popup('Error inesperado :(', 'Disculpa')
         break
+
