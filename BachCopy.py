@@ -175,7 +175,7 @@ def createMainWindow( checkboxes, templetaFileText='', sourcesDirText='', output
              [sg.Text('Carpeta de documentos de salida')],
              [sg.Input(outputDirText, key='-outputDir-',disabled=overwriteFiles), sg.FolderBrowse('...',target='-outputDir-',disabled=overwriteFiles,key="-outputBtn-")],
              [sg.Button('Ejecutar',key="-runBtn-")],
-             [sg.ProgressBar(100,visible=False, size=(30,10),orientation='h'',key="-progressBar-")],
+             [sg.ProgressBar(100,visible=False, size=(30,10),orientation='h',key="-progressBar-")],
              [sg.Text('0/0', visible=False,key="-countFiles-"),sg.Text('archivos', visible=False, key="-fileLbl-")],
              [sg.Table(values=[['','','']], key='-errorTable-', visible=False,headings=['Archivo','Unidad','Error'],col_widths=[20,10,20],auto_size_columns=False,num_rows=1)]
             ]
@@ -304,7 +304,7 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
         window['-fileLbl-'].update(visible=True)
         window['-errorTable-'].update(visible=True)
 
-        while i < len(filesIn) and not stop
+        while i < len(filesIn) and not stop:
             event, values = window.read(timeout=10)
             if event == '-runBtn-':
                 stop = True
@@ -321,7 +321,7 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
                     for error in errors:
                         errorsList.append([error.get('file'),error.get('unit'),error.get('msg')])
                     tableErrors.update(errorsList)
-                progress_bar.UpdateBar(i + 1)
+                progressBar.UpdateBar(i + 1)
             i =  i + 1
     else:
         sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
