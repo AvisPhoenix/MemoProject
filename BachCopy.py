@@ -89,7 +89,7 @@ def validSETFile(setFile):
         errors.append({'msg':'No tiene un registro del archivo', 'file': '??', 'unit': '?'})
     i = getSectionByName(setFile,'CONTROLS')
     if i >=0:
-        errors.append({'msg':'No tiene seccion de CONTROLS', 'file': setFile1[iFile].get('data'), 'unit': '?'})
+        errors.append({'msg':'No tiene seccion de CONTROLS', 'file': setFile[iFile].get('data'), 'unit': '?'})
     return errors
     
     
@@ -128,7 +128,7 @@ def mergeSection1to2(setFile1,setFile2,sectionName):
     return error
 
 
-def getFileNames(folder, folder2):
+def getFileNames(folder):
     files = []
     for entry in os.listdir(folder):
         if os.path.isfile(os.path.join(folder, entry)):
@@ -304,8 +304,10 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
         window['-fileLbl-'].update(visible=True)
         window['-errorTable-'].update(visible=True)
 
+        i = 0
+
         while i < len(filesIn) and not stop:
-            event, values = window.read(timeout=10)
+            event,  = window.read(timeout=10)
             if event == '-runBtn-':
                 stop = True
                 window['-runBtn-'].update('Ejecutar')
