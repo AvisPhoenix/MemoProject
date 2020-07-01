@@ -13,19 +13,25 @@ def loadFileSET(fileName):
 
     with open(fileName) as f:
         line = f.readline()
+        setFile.append({'name':'File','data':fileName})
+        list_data = []
         while line:
             if line[0] == '$':
                 if len(dict_item) > 0:
                     dict_item.update({'data': list_data})
                     setFile.append(dict_item)
+                    #Hasta este momento se agrega el elemento, por lo que si no tiene datos, y sólo es el titulo no se agrega
+                    #Esto no lo he visto como un error, pues el único que le pasa esto es a $ END OF MODEL FILE, que siempre
+                    # va al final y lo agrego manualmente al guardar el archivo.
+                    #Avis Phoenix - 01 Jul 2020
                 if line[2:6] != 'File':
+                    line= line.rstrip('\n')
                     dict_item = {'name':line[2:]}
                     list_data = []
-                else:
-                    setFile.append({'name':'File','data':fileName})
-                    list_data = []
+                    
             else:
-                list_data.append(line)
+                if len(line) > 1: #Evitamos los saltos de línea
+                    list_data.append(line)
             line = f.readline()
         f.close()
 
@@ -34,13 +40,15 @@ def loadFileSET(fileName):
 def saveFileSET(fileName, setFile):
 
     with open(fileName, 'w') as f:
+        f.write('$ File ' + fileName + ' saved ' + datetime.today().strftime('%m/%d/%Y %I:%M:%S %p') + '\n\n')
         for section in setFile:
             #Formato de fecha: https://strftime.org/
-            f.write('$ File ' + fileName + ' saved ' + datetime.today().strftime('%m/%d/%Y %I:%M:%S %p'))
             if section.get('name') != 'File':
-                sectionData = [ '$ ' +section.get('name')]
-                sectionData.extend(map(lambda x:x+'\n', section.get('data')))
+                sectionData = [ '$ ' +section.get('name') + '\n']
+                sectionData.extend(section.get('data'))
+                sectionData.append('\n')
                 f.writelines(sectionData)
+        f.write('$ END OF MODEL FILE')
         f.close()
 
     return setFile
@@ -84,12 +92,17 @@ def verifyUnit(setFile1,setFile2):
 def validSETFile(setFile):
     #Validación básica del archivo
     errors=[]
-    iFile = getSectionByName(setFile,'File')
-    if iFile >=0:
-        errors.append({'msg':'No tiene un registro del archivo', 'file': '??', 'unit': '?'})
-    i = getSectionByName(setFile,'CONTROLS')
-    if i >=0:
-        errors.append({'msg':'No tiene seccion de CONTROLS', 'file': setFile[iFile].get('data'), 'unit': '?'})
+
+    if len( setFile ) > 0:
+        iFile = getSectionByName(setFile,'File')
+        if iFile < 0:
+            errors.append({'msg':'No tiene un registro del archivo', 'file': '??', 'unit': '?'})
+        i = getSectionByName(setFile,'CONTROLS')
+        if i < 0:
+            errors.append({'msg':'No tiene seccion de CONTROLS', 'file': setFile[iFile].get('data'), 'unit': '?'})
+    else:
+        errors.append({'msg':'Archivo vacío', 'file': '??', 'unit': '?'})
+        
     return errors
     
     
@@ -110,7 +123,7 @@ def substituteSection1to2(setFile1,setFile2,sectionName):
     
     return error
 
-def mergeSection1to2(setFile1,setFile2,sectionName):
+def appendSection1to2(setFile1,setFile2,sectionName):
     i1 = getSectionByName(setFile1,sectionName)
     i2 = getSectionByName(setFile2,sectionName)
 
@@ -127,6 +140,31 @@ def mergeSection1to2(setFile1,setFile2,sectionName):
     
     return error
 
+def mergeSection1to2(setFile1,setFile2,sectionName):
+    i1 = getSectionByName(setFile1,sectionName)
+    i2 = getSectionByName(setFile2,sectionName)
+
+    error=[]
+    if i1 < 0:
+        i1 = getSectionByName(setFile1,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile1[i1].get('data'), 'unit':'?' })
+    if i2 < 0:
+        i2 = getSectionByName(setFile2,'File')
+        error.append({'msg':'No existe la sección ' + sectionName, 'file': setFile2[i2].get('data'), 'unit':'?' })
+    if i1 >= 0 and i2 >= 0:
+        #Mal desempeño en listas muy largas
+        diff = list( set(setFile1[i1].get('data')) - set(setFile2[i2].get('data')))
+        # Ordenamos la lista en el orden del archivo original
+        diffGoodOrder = []
+        for item in setFile1[i1].get('data'):
+            if item in diff:
+                diffGoodOrder.append(item)
+
+        if len(diffGoodOrder) > 0:
+            listF = setFile2[i2].get('data').extend(diffGoodOrder)
+            setFile2[i2].update({'data':listF})
+    
+    return error
 
 def getFileNames(folder):
     files = []
@@ -236,7 +274,7 @@ def runConfigurationWindow(sections):
             modalwindow['-availableList-'].update(availableList)
             modalwindow['-unavailableList-'].update(unavailableList)
         if event == '-leftBtn-':
-            #Pasar de no disnibles a disponibles
+            #Pasar de no disponibles a disponibles
             for item in values['-unavailableList-']:
                 unavailableList.remove(item)
                 availableList.append(item)
@@ -256,7 +294,7 @@ def getAvailableList(sections):
     FinalList = []
     i=0
     for section in sections:
-        if availableList.index(section) > -1:
+        if section in availableList:
             FinalList.append({'name': section, 'idx': i})
             i = i+1
     return FinalList
@@ -276,9 +314,9 @@ def getCheckBoxesSelection(values,availableList):
     salida = []
     for section in availableList:
         i = section.get('idx')
-        if values['-item' + i + '-']:
+        if values['-item' + str(i) + '-']:
             tipo = 1
-            if values['-item' + i + 'S-']:
+            if values['-item' + str(i) + 'S-']:
                 tipo = 0
             salida.append({'section': section.get('name'), 'type': tipo})
     return salida
@@ -290,15 +328,15 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
     errors = validSETFile(templateFile)
     if len(errors) == 0:
         progressBar = window['-progressBar-']
-        progressBar.update(len(filesIn))
         countFiles = window['-countFiles-']
-        countFiles.update("0 / " + str( len(filesIn) ) )
+        texto = "0 / " + str( len(filesIn) ) 
+        countFiles.update(texto)
 
         errorsList = []
         tableErrors =  window['-progressBar-']
         tableErrors.update([['','','']])
 
-        window['-runBtn-'].update('Cancelar')
+        window['-runBtn-'].update('Detener')
         window['-progressBar-'].update(visible=True)
         window['-countFiles-'].update(visible=True)
         window['-fileLbl-'].update(visible=True)
@@ -306,8 +344,9 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
 
         i = 0
 
+
         while i < len(filesIn) and not stop:
-            event,  = window.read(timeout=10)
+            event, values = window.read(timeout=10)
             if event == '-runBtn-':
                 stop = True
                 window['-runBtn-'].update('Ejecutar')
@@ -323,8 +362,12 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
                     for error in errors:
                         errorsList.append([error.get('file'),error.get('unit'),error.get('msg')])
                     tableErrors.update(errorsList)
-                progressBar.UpdateBar(i + 1)
+                progressBar.UpdateBar(((i + 1)*100)/ len(filesIn))
+                texto = str(i+1) + " / " + str( len(filesIn) ) 
+                countFiles.update(texto )
             i =  i + 1
+        
+        window['-runBtn-'].update('Empezar')
     else:
         sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
 
@@ -338,7 +381,7 @@ plantilla_file=[]
 sections=[]
 # Create the Window
 checkboxes= [[sg.Text('Abre una plantilla')]]
-window = createMainWindow(checkboxes)
+window = createMainWindow(checkboxes,overwriteFiles=False)
 # Ciclo principal de la aplicación
 while True:
     if window is not None:
@@ -359,7 +402,10 @@ while True:
                 window.close()
                 window = updateCheckBoxes(availableList)
             else:
-                sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
+                msg = ''
+                for error in errors:
+                    msg += error.get('msg') + '\n'
+                sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido:\n' + msg)
         if event == '-overwriteFiles-':
             # Habilitamos o deshabilitamos los controles de selección de carpeta de salida
             window['-outputDir-'].update(disabled=values['-overwriteFiles-'])
@@ -371,7 +417,8 @@ while True:
             window['-outputDir-'].update(values['-sourcesDir-'])
         if event == '-runBtn-':
             #Acciones del boton de ejecutar
-            processingFiles(plantilla_file, values['-sourcesDir-'], values['-outputDir-'], availableList, window )
+            sections2Process = getCheckBoxesSelection(values,availableList)
+            processingFiles(plantilla_file, values['-sourcesDir-'], values['-outputDir-'], sections2Process, window )
         if event == '-setupBtn-':
             runConfigurationWindow(sections)
             #No se puede crear contenido dinámico en pySimpleGUI por que tengo que re hacer la vista
