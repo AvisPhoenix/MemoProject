@@ -104,9 +104,7 @@ def validSETFile(setFile):
         errors.append({'msg':'Archivo vacío', 'file': '??', 'unit': '?'})
         
     return errors
-    
-    
-
+       
 def substituteSection1to2(setFile1,setFile2,sectionName):
     i1 = getSectionByName(setFile1,sectionName)
     i2 = getSectionByName(setFile2,sectionName)
@@ -169,7 +167,7 @@ def mergeSection1to2(setFile1,setFile2,sectionName):
 def getFileNames(folder):
     files = []
     for entry in os.listdir(folder):
-        if os.path.isfile(os.path.join(folder, entry)):
+        if os.path.isfile(os.path.join(folder, entry)) and entry[-3:] == '$et':
             files.append(entry)
     return files
 
@@ -303,7 +301,7 @@ def createLayoutCheckBoxes(sections):
     layout=[]
     for section in availableList:
         i = section.get('idx')
-        layout.append([sg.Checkbox(truncateString(section.get('name'),12),default=True, key="-item" + str(i) + "-", size=(13,10) ),sg.Radio('Sustituir',i,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, default=True,key="-item" + str(i) + "M-")])
+        layout.append([sg.Checkbox(truncateString(section.get('name'),12),default=True, key="-item" + str(i) + "-", size=(13,10) ),sg.Radio('Sustituir',i, default=True,key="-item" + str(i) + "S-"),sg.Radio('Mezclar',i, key="-item" + str(i) + "M-")])
     return layout
 
 def updateCheckBoxes(sections):
@@ -327,6 +325,9 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
 
     errors = validSETFile(templateFile)
     if len(errors) == 0:
+
+        fechaHoy = datetime.today().strftime('%m_%d_%Y_%H_%M_%S')
+
         progressBar = window['-progressBar-']
         countFiles = window['-countFiles-']
         texto = "0 / " + str( len(filesIn) ) 
@@ -344,7 +345,6 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
 
         i = 0
 
-
         while i < len(filesIn) and not stop:
             event, values = window.read(timeout=10)
             if event == '-runBtn-':
@@ -355,8 +355,9 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
                 window['-fileLbl-'].update(visible=False)
                 window['-errorTable-'].update(visible=False)
             if not stop:
+                
                 fileIn = os.path.join(folderIn, filesIn[i])
-                fileOut = os.path.join(folderOut, filesIn[i])
+                fileOut = os.path.join(folderOut, filesIn[i][:-3] + '_' + fechaHoy + '.$et' )
                 errors = processingFile(sections,templateFile,fileIn, fileOut)
                 if len(errors) > 0:
                     for error in errors:
@@ -370,9 +371,6 @@ def processingFiles(templateFile, folderIn, folderOut, sections, window):
         window['-runBtn-'].update('Empezar')
     else:
         sg.popup('Plantilla erronea','El formato del archivo de plantilla es inválido.')
-
-        
-
 
 ############################# CICLO PRINCIPAL ###############################
 #Variables globales
